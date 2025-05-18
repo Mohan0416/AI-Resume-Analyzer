@@ -3,62 +3,38 @@ from pdfminer.high_level import extract_text
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from groq import Groq
+import matplotlib.pyplot as plt
 import re
 from dotenv import load_dotenv
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 load_dotenv()
 api_key = os.getenv("GROQ_API_KEY")
+email_user = os.getenv("EMAIL_USER")
+email_pass = os.getenv("EMAIL_PASS")
 
-if "form_submitted" not in st.session_state:
-    st.session_state.form_submitted = False
-
-if "resume" not in st.session_state:
-    st.session_state.resume = ""
-
-if "job_desc" not in st.session_state:
-    st.session_state.job_desc = ""
-
-st.title("AI Resume Analyzer 📝")
+st.title("AI Resume Analyzer")
+client = Groq(api_key=api_key)
+model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
 
 def extract_pdf_text(uploaded_file):
-    try:
-        extracted_text = extract_text(uploaded_file)
-        return extracted_text
-    except Exception as e:
-        st.error(f"Error extracting text from PDF: {str(e)}")
-        return "Could not extract text from the PDF file."
+    return extract_text(uploaded_file)
 
-def calculate_similarity_bert(text1, text2):
-    ats_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-    embeddings1 = ats_model.encode([text1])
-    embeddings2 = ats_model.encode([text2])
-    similarity = cosine_similarity(embeddings1, embeddings2)[0][0]
-    return similarity
+def calculate_similarity(text1, text2):
+    embeddings1 = model.encode([text1])
+    embeddings2 = model.encode([text2])
+    return cosine_similarity(embeddings1, embeddings2)[0][0]
 
-def get_report(resume, job_desc):
-    client = Groq(api_key=api_key)
+def get_analysis_report(resume, job_desc):
     prompt = f"""
-    # Context:
-    - You are an AI Resume Analyzer, you will be given Candidate's resume and Job Description of the role he is applying for.
-
-    # Instruction:
-    - Analyze candidate's resume based on the possible points that can be extracted from job description,and give your evaluation on each point with the criteria below:
-      - Consider all points like required skills, experience,etc that are needed for the job role.
-    - Calculate the score to be given (out of 5) for every point based on evaluation at the beginning of each point with a detailed explanation.
-      - If the resume aligns with the job description point, mark it with ✅ and provide a detailed explanation.
-      - If the resume doesn't align with the job description point, mark it with ❌ and provide a reason for it.
-      - If a clear conclusion cannot be made, use a ⚠️ sign with a reason.
-      - The Final Heading should be "Suggestions to improve your resume:" and give where and what the candidate can improve to be selected for that job role.
-
-    # Inputs:
-    Candidate Resume: {resume}
-    ---
+    Analyze this resume based on the job description. Highlight skills, experience, and qualifications. 
+    Give a score out of 5 for each relevant job description point, use ✅, ❌ or ⚠️, and conclude with suggestions.
+    Resume: {resume}
     Job Description: {job_desc}
-
-    # Output:
-    - Each any every point should be given a score (example: 3/5 ).
-    - Mention the scores and  relevant emoji at the beginning of each point and then explain the reason.
     """
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
@@ -68,47 +44,78 @@ def get_report(resume, job_desc):
 
 def extract_scores(text):
     pattern = r'(\d+(?:\.\d+)?)/5'
-    matches = re.findall(pattern, text)
-    scores = [float(match) for match in matches]
-    return scores
+    return [float(m) for m in re.findall(pattern, text)]
 
-if not st.session_state.form_submitted:
-    with st.form("my_form"):
-        resume_file = st.file_uploader(label="Upload your Resume/CV in PDF format", type="pdf")
-        st.session_state.job_desc = st.text_area("Enter the Job Description of the role you are applying for:", placeholder="Job Description...")
-        submitted = st.form_submit_button("Analyze")
-        if submitted:
-            if st.session_state.job_desc and resume_file:
-                st.info("Extracting Information")
-                st.session_state.resume = extract_pdf_text(resume_file)
-                st.session_state.form_submitted = True
-                st.rerun()
-            else:
-                st.warning("Please Upload both Resume and Job Description to analyze")
+def find_missing_keywords(resume, job_desc):
+    resume_words = set(re.findall(r'\b\w+\b', resume.lower()))
+    jd_words = set(re.findall(r'\b\w+\b', job_desc.lower()))
+    missing = list(jd_words - resume_words)
+    return missing[:20]  # limit for readability
 
-if st.session_state.form_submitted:
-    score_place = st.info("Generating Scores...")
-    ats_score = calculate_similarity_bert(st.session_state.resume, st.session_state.job_desc)
-    col1, col2 = st.columns(2, border=True)
-    with col1:
-        st.write("Few ATS uses this score to shortlist candidates, Similarity Score:")
-        st.subheader(str(ats_score))
-    report = get_report(st.session_state.resume, st.session_state.job_desc)
-    report_scores = extract_scores(report)
-    avg_score = sum(report_scores) / (5 * len(report_scores))
-    with col2:
-        st.write("Total Average score according to our AI report:")
-        st.subheader(str(avg_score))
-    score_place.success("Scores generated successfully!")
-    st.subheader("AI Generated Analysis Report:")
-    st.markdown(f"""
-        <div style='text-align: left; background-color: #000000; padding: 10px; border-radius: 10px; margin: 5px 0;'>
-            {report}
-        </div>
-        """, unsafe_allow_html=True)
-    st.download_button(
-        label="Download Report",
-        data=report,
-        file_name="report.txt",
-        icon=":material/download:",
-    )
+def send_email_report(to_email, report, filename):
+    msg = MIMEMultipart()
+    msg['From'] = email_user
+    msg['To'] = to_email
+    msg['Subject'] = 'Your AI Resume Analysis Report'
+
+    body = "Please find attached your resume analysis report."
+    msg.attach(MIMEText(body, 'plain'))
+
+    attachment = MIMEApplication(report.encode('utf-8'))
+    attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
+    msg.attach(attachment)
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(email_user, email_pass)
+        server.send_message(msg)
+
+def plot_scores(scores, filename="score_chart.png"):
+    chart_dir = "charts"
+    os.makedirs(chart_dir, exist_ok=True)
+    chart_path = os.path.join(chart_dir, filename)
+
+    fig, ax = plt.subplots()
+    ax.bar(range(len(scores)), scores, color='skyblue')
+    ax.set_title("Score per Evaluation Point")
+    ax.set_xlabel("Points")
+    ax.set_ylabel("Score (out of 5)")
+    fig.tight_layout()
+
+    fig.savefig(chart_path)
+    plt.close(fig)
+    return chart_path
+
+
+job_desc = st.text_area("Enter Job Description")
+email = st.text_input("Enter your email to receive the report")
+resumes = st.file_uploader("Upload Resume PDFs", type="pdf", accept_multiple_files=True)
+
+if st.button("Analyze"):
+    if job_desc and resumes:
+        for resume_file in resumes:
+            resume_text = extract_pdf_text(resume_file)
+            similarity = calculate_similarity(resume_text, job_desc)
+            report = get_analysis_report(resume_text, job_desc)
+            scores = extract_scores(report)
+            avg_score = sum(scores) / (5 * len(scores)) if scores else 0
+            missing_keywords = find_missing_keywords(resume_text, job_desc)
+            chart_path = plot_scores(scores, filename=f"{resume_file.name}_chart.png")
+
+            st.subheader(f"Report for: {resume_file.name}")
+            st.write(f"**Similarity Score:** {similarity:.2f}")
+            st.write(f"**Average Evaluation Score:** {avg_score:.2f}")
+            st.image(chart_path, caption="Score Chart")
+
+            st.markdown("### Missing Keywords")
+            st.write(', '.join(missing_keywords))
+
+            st.markdown("### AI Feedback Report")
+            st.markdown(report, unsafe_allow_html=True)
+
+            st.download_button("Download Report", report, file_name=f"{resume_file.name}_report.txt")
+
+            if email:
+                send_email_report(email, report, f"{resume_file.name}_report.txt")
+                st.success(f"Report emailed to {email}")
+    else:
+        st.warning("Please enter a job description and upload at least one resume.")
