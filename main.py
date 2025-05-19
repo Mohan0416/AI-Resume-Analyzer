@@ -17,7 +17,13 @@ api_key = os.getenv("GROQ_API_KEY")
 email_user = os.getenv("EMAIL_USER")
 email_pass = os.getenv("EMAIL_PASS")
 
-st.title("AI Resume Analyzer")
+st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
+
+st.markdown(
+    "<h1 style='text-align: center; color: teal;'>📄 AI Resume Analyzer</h1>",
+    unsafe_allow_html=True
+)
+
 client = Groq(api_key=api_key)
 model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
 
@@ -73,14 +79,11 @@ def send_email_report(to_email, report, filename):
     msg['From'] = email_user
     msg['To'] = to_email
     msg['Subject'] = 'Your AI Resume Analysis Report'
-
     body = "Please find attached your resume analysis report."
     msg.attach(MIMEText(body, 'plain'))
-
     attachment = MIMEApplication(report.encode('utf-8'))
     attachment['Content-Disposition'] = f'attachment; filename="{filename}"'
     msg.attach(attachment)
-
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
         server.login(email_user, email_pass)
         server.send_message(msg)
@@ -91,11 +94,11 @@ def plot_scores(scores, labels=None, filename="score_chart.png"):
     chart_path = os.path.join(chart_dir, filename)
 
     fig, ax = plt.subplots(figsize=(10, 5))
-
     if not labels:
         labels = [f"Point {i+1}" for i in range(len(scores))]
 
-    bars = ax.bar(labels, scores, color='mediumseagreen', edgecolor='black')
+    colors = plt.cm.YlGn([score / 5 for score in scores])
+    bars = ax.bar(labels, scores, color=colors, edgecolor='black')
 
     for bar in bars:
         height = bar.get_height()
@@ -103,22 +106,25 @@ def plot_scores(scores, labels=None, filename="score_chart.png"):
                     xytext=(0, 3), textcoords="offset points", ha='center', fontsize=9, color='black')
 
     ax.set_ylim(0, 5.5)
-    ax.set_title("Resume Evaluation per Job Requirement", fontsize=14, fontweight='bold')
+    ax.set_title("📊 Resume Evaluation per Job Requirement", fontsize=14, fontweight='bold')
     ax.set_ylabel("Score (out of 5)", fontsize=12)
     ax.set_xlabel("Evaluation Points", fontsize=12)
     ax.grid(True, axis='y', linestyle='--', alpha=0.7)
     plt.xticks(rotation=30, ha='right')
     fig.tight_layout()
-
     fig.savefig(chart_path)
     plt.close(fig)
     return chart_path
 
-job_desc = st.text_area("Enter Job Description")
-email = st.text_input("Enter your email to receive the report")
-resumes = st.file_uploader("Upload Resume PDFs", type="pdf", accept_multiple_files=True)
+st.markdown("---")
+col1, col2 = st.columns([3, 1])
+with col1:
+    job_desc = st.text_area("📝 Enter Job Description", height=250)
+with col2:
+    email = st.text_input("📧 Enter your email to receive the report")
+resumes = st.file_uploader("📤 Upload Resume PDFs", type="pdf", accept_multiple_files=True)
 
-if st.button("Analyze"):
+if st.button("🔍 Analyze"):
     if job_desc and resumes:
         for resume_file in resumes:
             resume_text = extract_pdf_text(resume_file)
@@ -129,18 +135,19 @@ if st.button("Analyze"):
             missing_keywords = find_missing_keywords(resume_text, job_desc)
             chart_path = plot_scores(scores, filename=f"{resume_file.name}_chart.png")
 
-            st.subheader(f"Report for: {resume_file.name}")
-            st.write(f"**Similarity Score:** {similarity:.2f}")
-            st.write(f"**Average Evaluation Score:** {avg_score:.2f}")
-            st.image(chart_path, caption="Score Chart")
+            st.markdown("---")
+            st.subheader(f"📁 Report for: `{resume_file.name}`")
+            st.metric("Similarity Score", f"{similarity:.2f}")
+            st.metric("Average Evaluation Score", f"{avg_score:.2f}")
+            st.image(chart_path, caption="🖼️ Evaluation Chart", use_container_width=True)
 
-            st.markdown("### AI Feedback Report")
+            st.markdown("### 🧠 AI Feedback Report")
             st.markdown(report, unsafe_allow_html=True)
 
-            st.download_button("Download Report", report, file_name=f"{resume_file.name}_report.txt")
+            st.download_button("📥 Download Report", report, file_name=f"{resume_file.name}_report.txt")
 
             if email:
                 send_email_report(email, report, f"{resume_file.name}_report.txt")
-                st.success(f"Report emailed to {email}")
+                st.success(f"📧 Report emailed to **{email}**")
     else:
-        st.warning("Please enter a job description and upload at least one resume.")
+        st.warning("⚠️ Please enter a job description and upload at least one resume.")
