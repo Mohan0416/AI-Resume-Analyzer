@@ -1,0 +1,101 @@
+.sidebar {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 1rem;
+    border-right: 1px solid #dee2e6;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    background: linear-gradient(135deg, #2b5876 0%, #4e4376 100%);
+    color: white;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+
+.sidebar-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.2rem;
+}
+
+.sidebar-header p {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+.sidebar-footer {
+    font-size: 0.8rem;
+    text-align: center;
+    margin-top: 2rem;
+    color: #666;
+}
+
+.gradient-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.gradient-header h1 {
+    margin-bottom: 0.5rem;
+}
+
+.gradient-header p {
+    opacity: 0.9;
+}
+
+.info-box {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 1rem;
+    border-left: 4px solid #667eea;
+}
+
+.info-box h3 {
+    margin-top: 0;
+    color: #495057;
+}
+
+.info-box ol {
+    padding-left: 1.2rem;
+    color: #6c757d;
+}
+
+.stButton>button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.stButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.stTextArea textarea {
+    min-height: 200px;
+    border-radius: 8px;
+}
+
+.stMetric {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid #667eea;
+}
+
+.question-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid #764ba2;
+}
+
+.answer-box {
+    margin-bottom: 1.5rem;
+}
