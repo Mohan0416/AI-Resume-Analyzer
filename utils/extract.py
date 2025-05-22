@@ -18,3 +18,12 @@ def find_missing_keywords(resume, job_desc):
     jd_words = set(re.findall(r'\b\w+\b', job_desc.lower()))
     missing = list(jd_words - resume_words)
     return missing[:20]
+
+import fitz 
+def extract_text_from_pdf(uploaded_file):
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
+

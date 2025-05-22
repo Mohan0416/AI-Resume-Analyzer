@@ -5,36 +5,60 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def generate_interview_questions(resume, job_desc, num_questions=5):
     prompt = f"""
-    Based on the following resume and job description, generate {num_questions} personalized interview questions.
-    Include a mix of technical and behavioral questions.
+You are a technical interviewer preparing a candidate for an AI/ML or software engineering role.
 
-    **Resume**:
-    {resume}
+Based on the following RESUME and JOB DESCRIPTION, generate {num_questions} personalized and realistic interview questions.
 
-    **Job Description**:
-    {job_desc}
-    """
+Guidelines:
+- Questions should be relevant to candidate’s experience and job requirements.
+- Do NOT label as Technical/Behavioral.
+- Do NOT number the questions.
+- Ask only clear, natural-sounding questions.
+
+RESUME:
+{resume}
+
+JOB DESCRIPTION:
+{job_desc}
+
+Output:
+Only return the questions, each on a new line.
+"""
 
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model="llama-3.3-70b-versatile"
     )
-    return chat_completion.choices[0].message.content
-
+    return chat_completion.choices[0].message.content.strip()
 def evaluate_interview_answers(questions, answers):
     prompt = f"""
-    Evaluate the following candidate's answers to the interview questions. 
-    Give a score out of 10 for each answer and a short constructive feedback.
+You are an expert interview coach.
 
-    Questions:
-    {questions}
+Given the interview QUESTIONS and CANDIDATE'S ANSWERS, evaluate each answer.
 
-    Answers:
-    {answers}
-    """
+For each question, return:
+- A score out of 10
+- A 1-2 sentence evaluation
+- One suggestion for improvement
+
+Return the output in this exact format:
+
+Question 1: [question text]
+Score: X/10
+Feedback: ...
+Suggestion: ...
+
+Repeat for all questions.
+
+QUESTIONS:
+{questions}
+
+ANSWERS:
+{answers}
+"""
 
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model="llama-3.3-70b-versatile"
     )
-    return chat_completion.choices[0].message.content
+    return chat_completion.choices[0].message.content.strip()

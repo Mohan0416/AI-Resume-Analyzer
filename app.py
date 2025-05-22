@@ -102,68 +102,86 @@ if st.session_state.page == "Resume Matching":
 
 # -------------------- PAGE 2: SMART INTERVIEW PREP --------------------
 elif st.session_state.page == "Smart Interview Prep":
+    from utils.interview import generate_interview_questions, evaluate_interview_answers
+    from utils.extract import extract_text_from_pdf
+
     st.markdown("""
-    <div class="gradient-header">
+    <div style="background: linear-gradient(to right, #5f72be, #9921e8); padding: 1.5rem; border-radius: 12px; color: white;">
         <h1>Smart Interview Preparation</h1>
-        <p>Practice with AI-generated questions tailored to your profile</p>
+        <p>Upload your resume and job description to get AI-generated questions & feedback</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    with st.container():
-        col_prep1, col_prep2 = st.columns(2)
-        
-        with col_prep1:
-            with st.expander("📝 Your Professional Profile", expanded=True):
-                resume_text = st.text_area("", height=200, 
-                                        placeholder="Paste your resume text or professional summary...",
-                                        label_visibility="collapsed")
-            
-        with col_prep2:
-            with st.expander("🎯 Target Position Details", expanded=True):
-                job_desc = st.text_area("", height=200, 
-                                    placeholder="Paste the job description you're interviewing for...",
-                                    label_visibility="collapsed")
 
-    if st.button("🎯 Generate Practice Questions", type="primary", use_container_width=True):
-        if resume_text.strip() and job_desc.strip():
+    col_prep1, col_prep2 = st.columns(2)
+
+    with col_prep1:
+        with st.expander("📄 Upload Resume", expanded=True):
+            resume_file = st.file_uploader("Upload your Resume (PDF)", type=["pdf"], key="resume_upload")
+            resume_text = ""
+            if resume_file:
+                resume_text = extract_text_from_pdf(resume_file)
+
+    with col_prep2:
+        with st.expander("🧾 Upload or Paste Job Description", expanded=True):
+            job_desc_text = st.text_area("Or paste the Job Description here", height=200)
+
+    if st.button("🎯 Generate Interview Questions", type="primary", use_container_width=True):
+        if resume_text.strip() and job_desc_text.strip():
             with st.spinner("Generating tailored interview questions..."):
-                questions = generate_interview_questions(resume_text, job_desc, num_questions=10)
-                st.session_state.questions = questions
-                st.session_state.answers = [""] * 10  # Initialize empty answers
+                questions = generate_interview_questions(resume_text, job_desc_text, num_questions=5)
+                # Clean out any prefix like "1. Technical:" or "2. Behavioral:"
+                cleaned_questions = [
+                    q.split(":", 1)[-1].strip() if ":" in q else q
+                    for q in questions.split('\n') if q.strip()
+                ]
+                st.session_state.questions = cleaned_questions
+                st.session_state.answers = [""] * len(cleaned_questions)
         else:
-            st.warning("Please provide both your profile information and target job details")
+            st.warning("Please upload or paste both resume and job description.")
 
     if 'questions' in st.session_state:
         st.markdown("### 🔍 Interview Questions")
         with st.form(key='interview_form'):
-            for i, question in enumerate(st.session_state.questions.split('\n')):
-                if question.strip():
-                    st.markdown(f"""
-                    <div class="question-card">
-                        <h4>Question {i+1}:</h4>
-                        <p>{question}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.session_state.answers[i] = st.text_area(
-                        f"Answer to Question {i+1}",
-                        value=st.session_state.answers[i],
-                        height=100,
-                        key=f"answer_{i}",
-                        label_visibility="collapsed"
-                    )
-                    st.markdown("<div class='answer-box'></div>", unsafe_allow_html=True)
+            for i, question in enumerate(st.session_state.questions):
+                st.markdown(f"""
+                <div style='background-color:#1e1e1e; padding:15px; border-radius:10px; margin-bottom:15px; color:#f5f5f5;'>
+                    <strong style='color:#A78BFA;'>Question {i+1}:</strong><br>{question}
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.session_state.answers[i] = st.text_area(
+                    f"Answer to Question {i+1}",
+                    value=st.session_state.answers[i],
+                    height=100,
+                    key=f"answer_{i}",
+                    label_visibility="collapsed"
+                )
 
             if st.form_submit_button("📝 Submit Answers for Evaluation", use_container_width=True):
                 with st.spinner("Evaluating your responses..."):
                     answers_text = "\n".join(
-                        f"Question {i+1}: {q}\nAnswer: {a}\n" 
+                        f"Question {i+1}: {q}\nAnswer: {a}\n"
                         for i, (q, a) in enumerate(zip(
-                            st.session_state.questions.split('\n'),
+                            st.session_state.questions,
                             st.session_state.answers
                         )) if q.strip()
                     )
-                    
-                    feedback = evaluate_interview_answers(st.session_state.questions, answers_text)
+                    feedback = evaluate_interview_answers("\n".join(st.session_state.questions), answers_text)
                     st.markdown("### 📝 AI Evaluation")
-                    st.markdown(feedback, unsafe_allow_html=True)
+                    for block in feedback.split("Question")[1:]:  # Skip first empty split
+                        block = "Question" + block.strip()
+                        question_line = block.split("\n")[0]
+                        score_line = next((line for line in block.split("\n") if line.startswith("Score:")), "")
+                        feedback_line = next((line for line in block.split("\n") if line.startswith("Feedback:")), "")
+                        suggestion_line = next((line for line in block.split("\n") if line.startswith("Suggestion:")), "")
+
+                        st.markdown(f"""
+                        <div style="background-color:#1e1e1e; padding:15px; border-radius:12px; margin-bottom:20px; color:#e0e0e0;">
+        <h4 style="color:#A78BFA;">{question_line}</h4>
+        <p><strong style="color:#7FFFD4;">{score_line}</strong></p>
+        <p><span style="color:#FFA07A;"><strong>Feedback:</strong></span> {feedback_line.replace('Feedback:', '').strip()}</p>
+        <p><span style="color:#87CEFA;"><strong>Suggestion:</strong></span> {suggestion_line.replace('Suggestion:', '').strip()}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
